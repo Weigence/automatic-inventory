@@ -46,10 +46,10 @@ void setup() {
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
   Wire.begin(21, 22);  ///< Custom SDA/SCL pins for ESP32
 
-  scale.set_scale(366); ///< Calibration factor for the load cell
+  scale.set_scale(366);  ///< Calibration factor for the load cell
   Serial.println("Calibrating... Please remove the object.");
-  delay(5000);          ///< Allow time to remove objects
-  scale.tare();         ///< Zero the scale
+  delay(5000);   ///< Allow time to remove objects
+  scale.tare();  ///< Zero the scale
   Serial.println("Scale tared.");
 
   lastReading = millis();
@@ -83,7 +83,7 @@ void loop() {
     // Proceed if scale is ready
     if (scale.is_ready()) {
       Serial.print("Place the object... ");
-      long reading = scale.get_units(10); ///< Average of 10 readings
+      long reading = scale.get_units(10);  ///< Average of 10 readings
 
       // Auto-tare if negative reading is detected
       if (reading < 0) {
@@ -99,7 +99,7 @@ void loop() {
       // Try combinations of factory and reused items
       for (int m = 0; m <= reading / WEIGHT_OF_FABRIC_OBJ; ++m) {
         int weight_fabric = m * WEIGHT_OF_FABRIC_OBJ;
-        
+
         for (int n = 0; n <= (reading - weight_fabric) / WEIGHT_OF_REUSED_OBJ; ++n) {
           int weight_reused = n * WEIGHT_OF_REUSED_OBJ;
           int total = weight_fabric + weight_reused;
