@@ -23,7 +23,6 @@ jobs:
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
         with:
-          version: latest
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install ESP32 board package
