@@ -97,15 +97,17 @@ void loop() {
       bool found = false;
 
       // Try combinations of factory and reused items
-      for (int m = 0; m <= reading / WEIGHT_OF_FABRIC_OBJ; m++) {
-        int remainder = reading - m * WEIGHT_OF_FABRIC_OBJ;
+      for (int m = 0; m <= reading / WEIGHT_OF_FABRIC_OBJ; ++m) {
+        int weight_fabric = m * WEIGHT_OF_FABRIC_OBJ;
+        
+        for (int n = 0; n <= (reading - weight_fabric) / WEIGHT_OF_REUSED_OBJ; ++n) {
+          int weight_reused = n * WEIGHT_OF_REUSED_OBJ;
+          int total = weight_fabric + weight_reused;
 
-        // Check within ±EPSILON range to handle noise or inaccuracy
-        for (int delta = -EPSILON; delta <= EPSILON; delta++) {
-          int adjusted_remainder = remainder + delta;
-          if (adjusted_remainder >= 0 && adjusted_remainder % WEIGHT_OF_REUSED_OBJ == 0) {
+          // Verify that the total is within tolerance
+          if (abs(total - reading) <= EPSILON) {
             count_fabric = m;
-            count_reused = adjusted_remainder / WEIGHT_OF_REUSED_OBJ;
+            count_reused = n;
             found = true;
             break;
           }
