@@ -1,7 +1,7 @@
 /**
  * @file AutomaticInventory.ino
  * @brief Automatic inventory system using HX711 load cell and LCD display
- * @authors Antonio Bernardini e Giulio Bucchi
+ * @authors Antonio Bernardini and Giulio Bucchi
  * @date June 2025
  * 
  * This system weighs objects and determines the count of factory and reused items
