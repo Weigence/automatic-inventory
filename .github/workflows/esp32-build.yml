@@ -14,14 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        fqbn: [esp32:esp32:esp32dev]
+        fqbn: [esp32:esp32:esp32]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Arduino CLI
-        uses: arduino/setup-arduino-cli@v1
+        uses: arduino/setup-arduino-cli@v2
         with:
           version: latest
           token: ${{ secrets.GITHUB_TOKEN }}
