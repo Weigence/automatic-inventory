@@ -1,0 +1,36 @@
+name: ESP32 Sketch Build
+
+on:
+  push:
+    paths:
+      - '**.ino'
+      - '.github/workflows/esp32-build.yml'
+  pull_request:
+    paths:
+      - '**.ino'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        fqbn: [esp32:esp32:esp32dev]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v1
+        with:
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install ESP32 board package
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Compile sketch
+        run: |
+          arduino-cli compile --fqbn ${{ matrix.fqbn }} AutomaticInventory/
