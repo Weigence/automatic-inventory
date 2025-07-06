@@ -4,8 +4,9 @@
  * @authors Antonio Bernardini and Giulio Bucchi
  * @date June 2025
  * 
- * This system weighs objects and determines the count of factory and reused items
- * based on their known weights. Results are displayed on an I2C LCD.
+ * This system weighs objects and determines the count of factory items
+ * based on their known weight. Results are displayed on an I2C LCD with
+ * error detection and buzzer notification for unrecognized weights.
  */
 
 // Library includes
@@ -21,10 +22,10 @@
 const uint8_t LCD_ADDR = 0x3F;
 
 /// @brief Number of LCD rows
-const uint8_t LCD_ROWS = 2;
+const uint8_t LCD_ROWS = 4;
 
 /// @brief Number of LCD columns
-const uint8_t LCD_COLS = 16;
+const uint8_t LCD_COLS = 20;
 
 /// @brief Pin connected to HX711 DOUT (data out)
 const int LOADCELL_DOUT_PIN = 18;
@@ -34,6 +35,9 @@ const int LOADCELL_SCK_PIN = 19;
 
 /// @brief Pin for manual tare button
 const int TARE_BUTTON_PIN = 27;
+
+/// @brief Pin for buzzer output
+const int BUZZER_BUTTON_PIN = 26;
 
 /// @brief Custom SDA pin for ESP32 I2C
 const int SDA_PIN = 21;
@@ -48,23 +52,23 @@ const int SCL_PIN = 22;
 /// @brief Weight of a factory (new) object in scale units
 const int WEIGHT_OF_FABRIC_OBJ = 70;
 
-/// @brief Weight of a reused object in scale units
-const int WEIGHT_OF_REUSED_OBJ = 85;
-
-/// @brief Accepted tolerance when matching mixed weights
+/// @brief Accepted tolerance when matching weights
 const int EPSILON = 3;
 
 /// @brief Scale calibration factor
 const float SCALE_CALIBRATION_FACTOR = 366.0;
 
 /// @brief Reading interval in milliseconds
-const unsigned long READING_INTERVAL = 20;
+const unsigned long READING_INTERVAL = 200;
 
 /// @brief Tare delay in milliseconds
 const unsigned long TARE_DELAY = 5000;
 
 /// @brief Number of readings to average
-const int SCALE_READINGS = 10;
+const int SCALE_READINGS = 15;
+
+/// @brief Buzzer frequency for error notification
+const int BUZZER_FREQUENCY = 4000;
 
 // =============================================================================
 // GLOBAL OBJECTS AND VARIABLES
@@ -75,6 +79,9 @@ HX711 scale;
 
 /// @brief Timestamp for managing reading interval
 uint32_t lastReading;
+
+/// @brief Flag to track buzzer state
+bool isBuzzerOn = false;
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -93,6 +100,22 @@ void initializeLCD() {
 }
 
 /**
+ * @brief Initializes the buzzer pin
+ */
+void initializeBuzzer() {
+  pinMode(BUZZER_BUTTON_PIN, OUTPUT);
+  noTone(BUZZER_BUTTON_PIN);
+  isBuzzerOn = false;
+}
+
+/**
+ * @brief Initializes the tare button pin
+ */
+void initializeTareButton() {
+  pinMode(TARE_BUTTON_PIN, INPUT);
+}
+
+/**
  * @brief Initializes and calibrates the scale
  */
 void initializeScale() {
@@ -106,48 +129,80 @@ void initializeScale() {
 }
 
 /**
- * @brief Calculates the combination of fabric and reused objects
+ * @brief Calculates the number of fabric objects based on weight reading
  * @param reading The weight reading from the scale
  * @param count_fabric Reference to store fabric object count
- * @param count_reused Reference to store reused object count
- * @return true if a valid combination is found, false otherwise
+ * @return true if a valid count is found within tolerance, false otherwise
  */
-bool calculateObjectCounts(long reading, int& count_fabric, int& count_reused) {
-  count_fabric = -1;
-  count_reused = -1;
-
-  // Try combinations of factory and reused items
-  for (int m = 0; m <= reading / WEIGHT_OF_FABRIC_OBJ; ++m) {
-    int weight_fabric = m * WEIGHT_OF_FABRIC_OBJ;
-
-    for (int n = 0; n <= (reading - weight_fabric) / WEIGHT_OF_REUSED_OBJ; ++n) {
-      int weight_reused = n * WEIGHT_OF_REUSED_OBJ;
-      int total = weight_fabric + weight_reused;
-
-      // Verify that the total is within tolerance
-      if (abs(total - reading) <= EPSILON) {
-        count_fabric = m;
-        count_reused = n;
-        return true;
-      }
-    }
-  }
-
-  return false;
+bool calculateFabricObjectCount(long reading, int& count_fabric) {
+  count_fabric = round((float)reading / WEIGHT_OF_FABRIC_OBJ);
+  long expectedWeight = count_fabric * WEIGHT_OF_FABRIC_OBJ;
+  long delta = abs(reading - expectedWeight);
+  
+  // Check if the reading is within tolerance
+  return (delta <= EPSILON * count_fabric);
 }
 
 /**
- * @brief Updates the LCD display with object counts
- * @param count_fabric Number of fabric objects
- * @param count_reused Number of reused objects
+ * @brief Activates the buzzer for error notification
  */
-void updateDisplay(int count_fabric, int count_reused) {
+void activateBuzzer() {
+  if (!isBuzzerOn) {
+    tone(BUZZER_BUTTON_PIN, BUZZER_FREQUENCY);
+    isBuzzerOn = true;
+  }
+}
+
+/**
+ * @brief Deactivates the buzzer
+ */
+void deactivateBuzzer() {
+  if (isBuzzerOn) {
+    noTone(BUZZER_BUTTON_PIN);
+    isBuzzerOn = false;
+  }
+}
+
+/**
+ * @brief Displays fabric object count on LCD
+ * @param count_fabric Number of fabric objects
+ */
+void displayFabricCount(int count_fabric) {
+  lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Factory: ");
+  lcd.print("Fabbrica: ");
   lcd.print(count_fabric);
+}
+
+/**
+ * @brief Displays error message on LCD
+ */
+void displayError() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("ERRORE PESO");
   lcd.setCursor(0, 1);
-  lcd.print("Reused:  ");
-  lcd.print(count_reused);
+  lcd.print("Non riconosciuto");
+}
+
+/**
+ * @brief Displays tare completion message on LCD
+ */
+void displayTareComplete() {
+  lcd.clear();
+  lcd.print("TARA ESEGUITA");
+  delay(500);
+  lcd.clear();
+}
+
+/**
+ * @brief Displays automatic tare message on LCD
+ */
+void displayAutoTare() {
+  lcd.clear();
+  lcd.print("TARA AUTOMATICA");
+  delay(500);
+  lcd.clear();
 }
 
 /**
@@ -156,8 +211,9 @@ void updateDisplay(int count_fabric, int count_reused) {
 void handleTareButton() {
   if (digitalRead(TARE_BUTTON_PIN) == HIGH) {
     scale.tare();
-    Serial.println("Scale tared.");
-    lcd.clear();
+    Serial.println("Tara eseguita.");
+    displayTareComplete();
+    deactivateBuzzer();
   }
 }
 
@@ -169,26 +225,45 @@ void processScaleReading() {
     return;
   }
 
-  Serial.print("Place the object... ");
+  Serial.print("Peso letto: ");
   long reading = scale.get_units(SCALE_READINGS);
+  Serial.println(reading);
 
   // Auto-tare if negative reading is detected
   if (reading < 0) {
     scale.tare();
-    Serial.println("Negative reading -> Scale tared.");
-    lcd.clear();
+    Serial.println("Peso negativo -> tara automatica.");
+    displayAutoTare();
+    deactivateBuzzer();
     return;
   }
 
-  int count_fabric, count_reused;
-  bool found = calculateObjectCounts(reading, count_fabric, count_reused);
+  int count_fabric;
+  bool isValidWeight = calculateFabricObjectCount(reading, count_fabric);
 
-  Serial.print("Weight: ");
-  Serial.println(reading);
-
-  // Display results if valid combination found
-  if (found && count_fabric >= 0 && count_reused >= 0) {
-    updateDisplay(count_fabric, count_reused);
+  // First check - if weight is within tolerance
+  if (isValidWeight) {
+    Serial.print("Numero stimato: ");
+    Serial.println(count_fabric);
+    displayFabricCount(count_fabric);
+    deactivateBuzzer();
+  } else {
+    reading = scale.get_units(SCALE_READINGS);
+    Serial.print("Peso di verifica: ");
+    Serial.println(reading);
+    
+    isValidWeight = calculateFabricObjectCount(reading, count_fabric);
+    
+    if (isValidWeight) {
+      Serial.print("Numero stimato dopo verifica: ");
+      Serial.println(count_fabric);
+      displayFabricCount(count_fabric);
+      deactivateBuzzer();
+    } else {
+      Serial.println("Errore confermato.");
+      displayError();
+      activateBuzzer();
+    }
   }
 }
 
@@ -211,6 +286,8 @@ void setup() {
   // Initialize hardware components
   initializeScale();
   initializeLCD();
+  initializeBuzzer();
+  initializeTareButton();
 
   // Initialize timing
   lastReading = millis();
